@@ -105,6 +105,50 @@ export interface MyResonancesResponse {
   items: MyResonanceItem[]
 }
 
+/** Profile aggregates (GET /api/profile/me). Personal only — no comparisons. */
+export interface ArtistCount {
+  artist: string
+  count: number
+}
+export interface ProfileResponse {
+  totalPosts: number
+  focusTypeBreakdown: Partial<Record<FocusType, number>>
+  topArtists: ArtistCount[]
+  matchCount: number
+}
+
+/** In-app notification (GET /api/notifications), enriched for display. */
+export interface NotificationDTO {
+  id: string
+  type: string
+  read: boolean
+  createdAt: string
+  matchTier: MatchTier | null
+  trackTitle: string | null
+  trackArtist: string | null
+  isrc: string | null
+}
+export interface NotificationsResponse {
+  notifications: NotificationDTO[]
+  unreadCount: number
+}
+
+/** Track view (GET /api/tracks/:isrc/moments): posts grouped into clusters. */
+export interface MomentCluster {
+  centerMs: number
+  posts: ResonancePostDTO[]
+}
+export interface TrackMomentsResponse {
+  track: {
+    isrc: string
+    title: string
+    artist: string
+    albumArt: string | null
+    durationMs: number
+  }
+  clusters: MomentCluster[]
+}
+
 /** The authenticated user, as exposed to the client (never includes tokens). */
 export interface CurrentUser {
   id: string

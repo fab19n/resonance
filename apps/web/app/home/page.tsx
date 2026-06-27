@@ -3,28 +3,18 @@
 
 import { useEffect, useState } from 'react'
 import type { CurrentUser } from '@resonance/shared'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { AppHeader } from '@/components/AppHeader'
 import { CaptureFlow } from '@/components/CaptureFlow'
 
 export default function HomePage() {
-  const [user, setUser] = useState<CurrentUser | null>(null)
   const [status, setStatus] = useState<'loading' | 'unauthed' | 'ready'>('loading')
 
   useEffect(() => {
     let cancelled = false
     fetch('/api/auth/me')
       .then((res) => {
-        if (!res.ok) {
-          if (!cancelled) setStatus('unauthed')
-          return null
-        }
-        return res.json() as Promise<CurrentUser>
-      })
-      .then((me) => {
-        if (me && !cancelled) {
-          setUser(me)
-          setStatus('ready')
-        }
+        if (!cancelled) setStatus(res.ok ? 'ready' : 'unauthed')
+        return res.ok ? (res.json() as Promise<CurrentUser>) : null
       })
       .catch(() => {
         if (!cancelled) setStatus('unauthed')
@@ -36,16 +26,9 @@ export default function HomePage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-md px-6 py-10">
-      <header className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Resonance</h1>
-          {user && <p className="text-xs text-muted">@{user.username}</p>}
-        </div>
-        <ThemeToggle />
-      </header>
+      <AppHeader active="capture" />
 
       {status === 'loading' && <p className="text-muted">Loading…</p>}
-
       {status === 'unauthed' && (
         <div>
           <p className="text-muted">You are not signed in.</p>
@@ -54,7 +37,6 @@ export default function HomePage() {
           </a>
         </div>
       )}
-
       {status === 'ready' && <CaptureFlow />}
     </main>
   )

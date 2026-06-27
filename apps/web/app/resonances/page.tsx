@@ -7,7 +7,7 @@ import {
   type MyResonancesResponse,
   type MyResonanceItem,
 } from '@resonance/shared'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { AppHeader } from '@/components/AppHeader'
 
 export default function ResonancesPage() {
   const [items, setItems] = useState<MyResonanceItem[]>([])
@@ -39,27 +39,15 @@ export default function ResonancesPage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-md px-6 py-10">
-      <header className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">My Resonances</h1>
-          <a href="/home" className="text-xs text-accent hover:underline">
-            ← Capture a moment
-          </a>
-        </div>
-        <ThemeToggle />
-      </header>
+      <AppHeader active="resonances" />
+      <h1 className="mb-6 text-2xl font-semibold tracking-tight">My Resonances</h1>
 
       {status === 'loading' && <p className="text-muted">Loading…</p>}
-
       {status === 'unauthed' && (
-        <div>
-          <p className="text-muted">You are not signed in.</p>
-          <a href="/login" className="mt-2 inline-block text-accent hover:underline">
-            Go to login →
-          </a>
-        </div>
+        <a href="/login" className="text-accent hover:underline">
+          Go to login →
+        </a>
       )}
-
       {status === 'ready' && items.length === 0 && (
         <p className="text-muted">
           No moments yet. Capture your first one and your listening identity starts to form.
@@ -69,28 +57,30 @@ export default function ResonancesPage() {
       {status === 'ready' && items.length > 0 && (
         <ul className="space-y-3">
           {items.map(({ post, track, matchCount }) => (
-            <li
-              key={post.id}
-              className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4"
-            >
-              {track.albumArt && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={track.albumArt} alt="" width={56} height={56} className="rounded-lg" />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-medium">{track.title}</div>
-                <div className="truncate text-sm text-muted">{track.artist}</div>
-                <div className="mt-1 text-xs text-muted">
-                  {FOCUS_TYPE_LABELS[post.focusType]}
-                  {post.sensoryTags && post.sensoryTags.length > 0
-                    ? ` · ${post.sensoryTags.join(', ')}`
-                    : ''}
+            <li key={post.id}>
+              <a
+                href={`/tracks/${encodeURIComponent(track.isrc)}`}
+                className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 transition-colors hover:border-accent"
+              >
+                {track.albumArt && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={track.albumArt} alt="" width={56} height={56} className="rounded-lg" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium">{track.title}</div>
+                  <div className="truncate text-sm text-muted">{track.artist}</div>
+                  <div className="mt-1 text-xs text-muted">
+                    {FOCUS_TYPE_LABELS[post.focusType]}
+                    {post.sensoryTags && post.sensoryTags.length > 0
+                      ? ` · ${post.sensoryTags.join(', ')}`
+                      : ''}
+                  </div>
                 </div>
-              </div>
-              <div className="shrink-0 text-right">
-                <div className="text-sm font-semibold">{matchCount}</div>
-                <div className="text-xs text-muted">{matchCount === 1 ? 'match' : 'matches'}</div>
-              </div>
+                <div className="shrink-0 text-right">
+                  <div className="text-sm font-semibold">{matchCount}</div>
+                  <div className="text-xs text-muted">{matchCount === 1 ? 'match' : 'matches'}</div>
+                </div>
+              </a>
             </li>
           ))}
         </ul>
