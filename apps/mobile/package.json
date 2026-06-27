@@ -1,0 +1,6 @@
+{
+  "name": "@resonance/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "comment": "Phase 2 — Expo + React Native. Scaffold only. Consumes the same deployed Next.js API and @resonance/shared types. No code yet."
+}

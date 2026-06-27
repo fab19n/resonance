@@ -1,0 +1,18 @@
+{
+  "name": "resonance",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.18.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @resonance/web dev",
+    "build": "pnpm --filter @resonance/web build",
+    "start": "pnpm --filter @resonance/web start",
+    "db:generate": "pnpm --filter @resonance/web db:generate",
+    "db:migrate": "pnpm --filter @resonance/web db:migrate",
+    "db:push": "pnpm --filter @resonance/web db:push",
+    "typecheck": "pnpm -r typecheck"
+  }
+}
