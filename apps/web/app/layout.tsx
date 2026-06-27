@@ -1,5 +1,7 @@
 // apps/web/app/layout.tsx
+import './globals.css'
 import type { ReactNode } from 'react'
+import { ThemeProvider } from '@/components/ThemeProvider'
 
 export const metadata = {
   title: 'Resonance',
@@ -7,9 +9,13 @@ export const metadata = {
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  // suppressHydrationWarning: next-themes sets the theme class on <html> before
+  // hydration, so the server/client html attributes intentionally differ.
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   )
 }

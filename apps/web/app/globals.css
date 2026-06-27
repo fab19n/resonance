@@ -1,0 +1,37 @@
+/* apps/web/app/globals.css */
+@import 'tailwindcss';
+
+/* Class-based dark mode (toggled by next-themes on <html>). The :where()
+   wrapper keeps specificity at zero to avoid override surprises. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Calm (light) is the default palette. Tokens are semantic, not literal,
+   so components never hardcode a colour. */
+@theme {
+  --color-background: hsl(40 33% 98%);
+  --color-foreground: hsl(230 18% 18%);
+  --color-card: hsl(0 0% 100%);
+  --color-muted: hsl(230 8% 46%);
+  --color-border: hsl(230 14% 90%);
+  --color-accent: hsl(245 48% 55%);
+  --color-accent-foreground: hsl(0 0% 100%);
+}
+
+/* Dark (introspective) palette — same token names, different values.
+   CSS custom properties cascade, so utilities resolve to these whenever a
+   .dark ancestor is present. */
+.dark {
+  --color-background: hsl(230 22% 9%);
+  --color-foreground: hsl(220 18% 92%);
+  --color-card: hsl(230 18% 13%);
+  --color-muted: hsl(225 10% 62%);
+  --color-border: hsl(230 12% 22%);
+  --color-accent: hsl(245 70% 72%);
+  --color-accent-foreground: hsl(230 22% 9%);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  -webkit-font-smoothing: antialiased;
+}

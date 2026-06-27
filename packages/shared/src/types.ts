@@ -22,6 +22,17 @@ export const FOCUS_TYPES = [
 
 export type FocusType = (typeof FOCUS_TYPES)[number]
 
+/** Human-readable labels for focus types (UI display). */
+export const FOCUS_TYPE_LABELS: Record<FocusType, string> = {
+  lyrics: 'Lyrics',
+  beat: 'Beat',
+  rhythm: 'Rhythm',
+  production: 'Production',
+  instrumentation: 'Instrumentation',
+  emotion: 'Emotion',
+  structure: 'Structure',
+}
+
 /** Tier 0 = exact resonance. Tier 1 = same moment, different lens. */
 export type MatchTier = 0 | 1
 
@@ -72,6 +83,26 @@ export interface CreatePostResponse {
 /** Response of GET /api/posts/:id/matches */
 export interface PostMatchesResponse {
   matches: MatchResult[]
+}
+
+/** Minimal track fields for list display. */
+export interface TrackRef {
+  isrc: string
+  title: string
+  artist: string
+  albumArt: string | null
+}
+
+/** One row in the "My Resonances" surface. */
+export interface MyResonanceItem {
+  post: ResonancePostDTO
+  track: TrackRef
+  matchCount: number
+}
+
+/** Response of GET /api/posts/mine */
+export interface MyResonancesResponse {
+  items: MyResonanceItem[]
 }
 
 /** The authenticated user, as exposed to the client (never includes tokens). */
