@@ -30,9 +30,14 @@ export const MAX_TAGS_PER_POST = 6
 export const MAX_CUSTOM_TAG_LENGTH = 30
 export const TOLERANCE_WINDOW_MS = 3000
 
-/** Body of POST /api/posts */
+/**
+ * Body of POST /api/posts. Carries the full track (from now-playing or search)
+ * so the server can upsert `tracks` before inserting the post — the post's isrc
+ * FK requires the track row to exist, and re-fetching server-side would race
+ * against playback changes and wouldn't cover search-based captures.
+ */
 export interface CreateResonancePayload {
-  isrc: string
+  track: TrackSummary
   progressMs: number
   focusType: FocusType
   sensoryTags: string[]
@@ -55,6 +60,18 @@ export interface ResonancePostDTO {
 export interface MatchResult {
   post: ResonancePostDTO
   matchTier: MatchTier
+}
+
+/** Response of POST /api/posts. isPioneer = no overlaps found (yet). */
+export interface CreatePostResponse {
+  post: ResonancePostDTO
+  matches: MatchResult[]
+  isPioneer: boolean
+}
+
+/** Response of GET /api/posts/:id/matches */
+export interface PostMatchesResponse {
+  matches: MatchResult[]
 }
 
 /** The authenticated user, as exposed to the client (never includes tokens). */

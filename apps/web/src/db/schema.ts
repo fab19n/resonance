@@ -28,7 +28,7 @@ export const users = pgTable('users', {
 // isrc is the universal primary key. 'spotify_fallback' tracks use a
 // synthetic key of 'spotify:{spotifyTrackId}' when ISRC is absent.
 export const tracks = pgTable('tracks', {
-  isrc:       varchar('isrc', { length: 15 }).primaryKey(),
+  isrc:       varchar('isrc', { length: 40 }).primaryKey(),
   title:      varchar('title', { length: 255 }).notNull(),
   artist:     varchar('artist', { length: 255 }).notNull(),
   albumName:  varchar('album_name', { length: 255 }),
@@ -43,7 +43,7 @@ export const tracks = pgTable('tracks', {
 // keyed back to the universal ISRC. Enables future cross-platform matching.
 export const platformTrackIds = pgTable('platform_track_ids', {
   id:              uuid('id').primaryKey().defaultRandom(),
-  isrc:            varchar('isrc', { length: 15 }).references(() => tracks.isrc).notNull(),
+  isrc:            varchar('isrc', { length: 40 }).references(() => tracks.isrc).notNull(),
   platform:        varchar('platform', { length: 30 }).notNull(),
   platformTrackId: varchar('platform_track_id', { length: 100 }).notNull(),
 }, (table) => [
@@ -55,7 +55,7 @@ export const platformTrackIds = pgTable('platform_track_ids', {
 export const resonancePosts = pgTable('resonance_posts', {
   id:          uuid('id').primaryKey().defaultRandom(),
   userId:      uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  isrc:        varchar('isrc', { length: 15 }).references(() => tracks.isrc).notNull(),
+  isrc:        varchar('isrc', { length: 40 }).references(() => tracks.isrc).notNull(),
   progressMs:  integer('progress_ms').notNull(),
   focusType:   focusTypeEnum('focus_type').notNull(),
   sensoryTags: text('sensory_tags').array(),
