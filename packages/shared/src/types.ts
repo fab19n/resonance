@@ -22,6 +22,17 @@ export const FOCUS_TYPES = [
 
 export type FocusType = (typeof FOCUS_TYPES)[number]
 
+/** Human-readable labels for focus types (UI display). */
+export const FOCUS_TYPE_LABELS: Record<FocusType, string> = {
+  lyrics: 'Lyrics',
+  beat: 'Beat',
+  rhythm: 'Rhythm',
+  production: 'Production',
+  instrumentation: 'Instrumentation',
+  emotion: 'Emotion',
+  structure: 'Structure',
+}
+
 /** Tier 0 = exact resonance. Tier 1 = same moment, different lens. */
 export type MatchTier = 0 | 1
 
@@ -30,9 +41,14 @@ export const MAX_TAGS_PER_POST = 6
 export const MAX_CUSTOM_TAG_LENGTH = 30
 export const TOLERANCE_WINDOW_MS = 3000
 
-/** Body of POST /api/posts */
+/**
+ * Body of POST /api/posts. Carries the full track (from now-playing or search)
+ * so the server can upsert `tracks` before inserting the post — the post's isrc
+ * FK requires the track row to exist, and re-fetching server-side would race
+ * against playback changes and wouldn't cover search-based captures.
+ */
 export interface CreateResonancePayload {
-  isrc: string
+  track: TrackSummary
   progressMs: number
   focusType: FocusType
   sensoryTags: string[]
@@ -55,6 +71,82 @@ export interface ResonancePostDTO {
 export interface MatchResult {
   post: ResonancePostDTO
   matchTier: MatchTier
+}
+
+/** Response of POST /api/posts. isPioneer = no overlaps found (yet). */
+export interface CreatePostResponse {
+  post: ResonancePostDTO
+  matches: MatchResult[]
+  isPioneer: boolean
+}
+
+/** Response of GET /api/posts/:id/matches */
+export interface PostMatchesResponse {
+  matches: MatchResult[]
+}
+
+/** Minimal track fields for list display. */
+export interface TrackRef {
+  isrc: string
+  title: string
+  artist: string
+  albumArt: string | null
+}
+
+/** One row in the "My Resonances" surface. */
+export interface MyResonanceItem {
+  post: ResonancePostDTO
+  track: TrackRef
+  matchCount: number
+}
+
+/** Response of GET /api/posts/mine */
+export interface MyResonancesResponse {
+  items: MyResonanceItem[]
+}
+
+/** Profile aggregates (GET /api/profile/me). Personal only — no comparisons. */
+export interface ArtistCount {
+  artist: string
+  count: number
+}
+export interface ProfileResponse {
+  totalPosts: number
+  focusTypeBreakdown: Partial<Record<FocusType, number>>
+  topArtists: ArtistCount[]
+  matchCount: number
+}
+
+/** In-app notification (GET /api/notifications), enriched for display. */
+export interface NotificationDTO {
+  id: string
+  type: string
+  read: boolean
+  createdAt: string
+  matchTier: MatchTier | null
+  trackTitle: string | null
+  trackArtist: string | null
+  isrc: string | null
+}
+export interface NotificationsResponse {
+  notifications: NotificationDTO[]
+  unreadCount: number
+}
+
+/** Track view (GET /api/tracks/:isrc/moments): posts grouped into clusters. */
+export interface MomentCluster {
+  centerMs: number
+  posts: ResonancePostDTO[]
+}
+export interface TrackMomentsResponse {
+  track: {
+    isrc: string
+    title: string
+    artist: string
+    albumArt: string | null
+    durationMs: number
+  }
+  clusters: MomentCluster[]
 }
 
 /** The authenticated user, as exposed to the client (never includes tokens). */
