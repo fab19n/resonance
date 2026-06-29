@@ -3,13 +3,12 @@
 
 import { FOCUS_TYPES, FOCUS_TYPE_LABELS, type FocusType } from '@resonance/shared'
 
-export function FocusTypePicker({
-  selected,
-  onSelect,
-}: {
+interface Props {
   selected: FocusType | null
   onSelect: (focus: FocusType) => void
-}) {
+}
+
+export function FocusTypePicker({ selected, onSelect }: Props) {
   return (
     <div className="grid grid-cols-2 gap-2">
       {FOCUS_TYPES.map((focus) => {

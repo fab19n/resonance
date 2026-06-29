@@ -1,4 +1,6 @@
 // apps/web/src/components/CaptureFlow.tsx
+// Phase 1 minimal update: progressMs → momentStartMs in POST body.
+// This component is fully rebuilt in Phase 2.
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -34,8 +36,6 @@ export function CaptureFlow() {
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<CreatePostResponse | null>(null)
 
-  // Search fallback (when nothing is playing). A search-selected track has no
-  // live position, so its moment is fixed at 0.
   const [searchTrack, setSearchTrack] = useState<TrackSummary | null>(null)
   const [query, setQuery] = useState('')
   const [searchResults, setSearchResults] = useState<TrackSummary[]>([])
@@ -49,8 +49,6 @@ export function CaptureFlow() {
   const targetTrack = searchTrack ?? np.track
 
   function selectFocus(focus: FocusType) {
-    // Freeze the moment on the FIRST focus tap (the reaction instant), so the
-    // position can't drift while tags/reflection are added.
     if (!frozen && targetTrack) {
       setFrozen({
         track: targetTrack,
@@ -86,7 +84,7 @@ export function CaptureFlow() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         track: frozen.track,
-        progressMs: frozen.progressMs,
+        momentStartMs: frozen.progressMs, // renamed from progressMs
         focusType,
         sensoryTags: tags,
         reflection: reflection.trim() || undefined,
@@ -138,12 +136,10 @@ export function CaptureFlow() {
     )
   }
 
-  // ── Loading ─────────────────────────────────────────────────────────────--
   if (np.status === 'loading') {
     return <p className="text-muted">Detecting what you're listening to…</p>
   }
 
-  // ── Nothing playing → search fallback ──────────────────────────────────────
   if (!targetTrack) {
     return (
       <div className="space-y-4">
@@ -188,7 +184,6 @@ export function CaptureFlow() {
     )
   }
 
-  // ── Capture ────────────────────────────────────────────────────────────────
   const isLive = !searchTrack && np.isPlaying
 
   return (
@@ -235,7 +230,6 @@ export function CaptureFlow() {
         <FocusTypePicker selected={focusType} onSelect={selectFocus} />
       </div>
 
-      {/* Focus-first: revealed only after a focus is chosen (moment now frozen) */}
       {focusType && frozen && (
         <div className="space-y-6 border-t border-border pt-6">
           <SensoryTagSelector selected={tags} onChange={setTags} showCategoryLabels={isFirst} />

@@ -6,7 +6,7 @@
 // keeping `shared` free of server-only dependencies.
 
 /**
- * The fixed set of 7 focus types. This array is the single source of truth
+ * The fixed set of 8 focus types. This array is the single source of truth
  * for the TS union. The Postgres enum in the DB schema mirrors these exact
  * values, in this exact order.
  */
@@ -18,6 +18,7 @@ export const FOCUS_TYPES = [
   'instrumentation',
   'emotion',
   'structure',
+  'vocals',
 ] as const
 
 export type FocusType = (typeof FOCUS_TYPES)[number]
@@ -31,6 +32,7 @@ export const FOCUS_TYPE_LABELS: Record<FocusType, string> = {
   instrumentation: 'Instrumentation',
   emotion: 'Emotion',
   structure: 'Structure',
+  vocals: 'Vocals',
 }
 
 /** Tier 0 = exact resonance. Tier 1 = same moment, different lens. */
@@ -42,16 +44,25 @@ export const MAX_CUSTOM_TAG_LENGTH = 30
 export const TOLERANCE_WINDOW_MS = 3000
 
 /**
- * Body of POST /api/posts. Carries the full track (from now-playing or search)
- * so the server can upsert `tracks` before inserting the post — the post's isrc
- * FK requires the track row to exist, and re-fetching server-side would race
- * against playback changes and wouldn't cover search-based captures.
+ * Body of POST /api/posts.
+ *
+ * momentStartMs: the anchor timestamp in the track (ms).
+ * momentEndMs:   end of a range capture. null = point capture.
+ * subLayer:      optional refinement within the chosen focusType.
+ * lyricText:     set only when the capture originated from a lyric tap.
+ *                Contains the selected lyric line(s) text.
+ *
+ * Carries the full track so the server can upsert `tracks` before inserting
+ * the post — the post's ISRC FK requires the track row to exist.
  */
 export interface CreateResonancePayload {
   track: TrackSummary
-  progressMs: number
+  momentStartMs: number
+  momentEndMs?: number | null
   focusType: FocusType
+  subLayer?: string | null
   sensoryTags: string[]
+  lyricText?: string | null
   reflection?: string
 }
 
@@ -60,9 +71,12 @@ export interface ResonancePostDTO {
   id: string
   userId: string
   isrc: string
-  progressMs: number
+  momentStartMs: number
+  momentEndMs: number | null
   focusType: FocusType
+  subLayer: string | null
   sensoryTags: string[] | null
+  lyricText: string | null
   reflection: string | null
   createdAt: string
 }
@@ -168,7 +182,11 @@ export interface TrackSummary {
   spotifyTrackId: string
 }
 
-/** Response of GET /api/spotify/now-playing */
+/**
+ * Response of GET /api/spotify/now-playing.
+ * progressMs here is Spotify's live playback position — distinct from
+ * momentStartMs which is the captured anchor stored in the DB.
+ */
 export interface NowPlayingResponse {
   isPlaying: boolean
   progressMs: number | null
@@ -178,4 +196,19 @@ export interface NowPlayingResponse {
 /** Response of GET /api/spotify/search */
 export interface SearchResponse {
   tracks: TrackSummary[]
+}
+
+/**
+ * One line from a synced LRC lyrics response.
+ * timestampMs: position in the track this line starts.
+ */
+export interface LrcLine {
+  timestampMs: number
+  text: string
+}
+
+/** Response of GET /api/lyrics */
+export interface LyricsResponse {
+  syncedLines: LrcLine[] | null  // null = no synced lyrics available
+  plainLyrics: string | null
 }

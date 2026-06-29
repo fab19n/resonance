@@ -7,9 +7,12 @@ export function postToDTO(row: typeof resonancePosts.$inferSelect): ResonancePos
     id: row.id,
     userId: row.userId,
     isrc: row.isrc,
-    progressMs: row.progressMs,
+    momentStartMs: row.momentStartMs,
+    momentEndMs: row.momentEndMs ?? null,
     focusType: row.focusType,
+    subLayer: row.subLayer ?? null,
     sensoryTags: row.sensoryTags ?? null,
+    lyricText: row.lyricText ?? null,
     reflection: row.reflection,
     createdAt: row.createdAt.toISOString(),
   }

@@ -10,7 +10,11 @@ import { postToDTO } from '@/lib/mappers'
 type PostRow = typeof resonancePosts.$inferSelect
 
 function finalize(group: PostRow[]): MomentCluster {
-  const centerMs = Math.round(group.reduce((sum, p) => sum + p.progressMs, 0) / group.length)
+  // centerMs is the mean of all momentStartMs values in the cluster.
+  // For range captures, momentStartMs is the anchor — consistent for clustering.
+  const centerMs = Math.round(
+    group.reduce((sum, p) => sum + p.momentStartMs, 0) / group.length,
+  )
   return { centerMs, posts: group.map(postToDTO) }
 }
 
@@ -34,11 +38,11 @@ export async function GET(
     .select()
     .from(resonancePosts)
     .where(eq(resonancePosts.isrc, isrc))
-    .orderBy(asc(resonancePosts.progressMs))
+    .orderBy(asc(resonancePosts.momentStartMs))
 
   // Greedy clustering: walk posts in time order, keep them in the current
   // cluster while they fall within the tolerance window of its start, then
-  // open a new cluster. centerMs is the mean position of the cluster.
+  // open a new cluster.
   const clusters: MomentCluster[] = []
   let current: PostRow[] = []
   let windowStart = 0
@@ -46,15 +50,15 @@ export async function GET(
   for (const post of posts) {
     if (current.length === 0) {
       current = [post]
-      windowStart = post.progressMs
+      windowStart = post.momentStartMs
       continue
     }
-    if (post.progressMs - windowStart <= TOLERANCE_WINDOW_MS) {
+    if (post.momentStartMs - windowStart <= TOLERANCE_WINDOW_MS) {
       current.push(post)
     } else {
       clusters.push(finalize(current))
       current = [post]
-      windowStart = post.progressMs
+      windowStart = post.momentStartMs
     }
   }
   if (current.length > 0) clusters.push(finalize(current))
