@@ -10,7 +10,7 @@
 'use client'
 
 import { FOCUS_TYPE_LABELS, type ResonancePostDTO } from '@resonance/shared'
-import { formatTime } from '@/lib/format'
+import { formatMoment } from '@/lib/format'
 
 interface TrackInfo {
   title: string
@@ -26,12 +26,6 @@ interface Props {
   href?: string             // wraps card in a link when provided
 }
 
-function formatMoment(startMs: number, endMs: number | null): string {
-  if (endMs !== null && endMs > startMs) {
-    return `${formatTime(startMs)} → ${formatTime(endMs)}`
-  }
-  return `@ ${formatTime(startMs)}`
-}
 
 export function PostCard({ post, track, matchCount, isOwn, href }: Props) {
   const momentLabel = formatMoment(post.momentStartMs, post.momentEndMs)
