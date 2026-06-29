@@ -31,15 +31,30 @@ function parseLrc(lrc: string): LrcLine[] {
   const RE = /\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/g
   let match: RegExpExecArray | null
 
-  while ((match = RE.exec(lrc)) !== null) {
-    const minutes = parseInt(match[1], 10)
-    const seconds = parseInt(match[2], 10)
-    const csRaw = match[3]
-    const ms = csRaw.length === 3 ? parseInt(csRaw, 10) : parseInt(csRaw, 10) * 10
-    const timestampMs = (minutes * 60 + seconds) * 1000 + ms
-    const text = match[4].trim()
-    lines.push({ timestampMs, text })
+while ((match = RE.exec(lrc)) !== null) {
+  const [, minutesStr, secondsStr, csRaw, text] = match
+
+  if (
+    minutesStr === undefined ||
+    secondsStr === undefined ||
+    csRaw === undefined ||
+    text === undefined
+  ) {
+    continue
   }
+
+  const minutes = parseInt(minutesStr, 10)
+  const seconds = parseInt(secondsStr, 10)
+  const ms =
+    csRaw.length === 3
+      ? parseInt(csRaw, 10)
+      : parseInt(csRaw, 10) * 10
+
+  lines.push({
+    timestampMs: (minutes * 60 + seconds) * 1000 + ms,
+    text: text.trim(),
+  })
+}
 
   return lines.sort((a, b) => a.timestampMs - b.timestampMs)
 }
