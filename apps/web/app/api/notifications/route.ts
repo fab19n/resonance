@@ -15,7 +15,8 @@ export async function GET(request: NextRequest) {
   }
 
   // Recent notifications (read + unread) for the bell, enriched with the track
-  // of the user's matched post and the match tier. The notification's matchId
+  // of the user's matched post, the match tier, and the matchId/conversationId
+  // needed for routing taps to the right page. The notification's matchId
   // points at a post_matches row whose postBId is the user's (earlier) post.
   const rows = await db
     .select({
@@ -23,6 +24,8 @@ export async function GET(request: NextRequest) {
       type: notifications.type,
       read: notifications.read,
       createdAt: notifications.createdAt,
+      matchId: notifications.matchId,
+      conversationId: notifications.conversationId,
       matchTier: postMatches.matchTier,
       trackTitle: tracks.title,
       trackArtist: tracks.artist,
@@ -48,10 +51,12 @@ export async function GET(request: NextRequest) {
         type: r.type,
         read: r.read,
         createdAt: r.createdAt.toISOString(),
+        matchId: r.matchId ?? null,
         matchTier: (r.matchTier ?? null) as MatchTier | null,
         trackTitle: r.trackTitle ?? null,
         trackArtist: r.trackArtist ?? null,
         isrc: r.isrc ?? null,
+        conversationId: r.conversationId ?? null,
       }),
     ),
     unreadCount: Number(unread?.n ?? 0),

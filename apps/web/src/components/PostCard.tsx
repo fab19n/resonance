@@ -9,8 +9,9 @@
 
 'use client'
 
-import { FOCUS_TYPE_LABELS, type ResonancePostDTO } from '@resonance/shared'
+import { FOCUS_TYPE_LABELS, type ResonancePostDTO, type UserRef } from '@resonance/shared'
 import { formatMoment } from '@/lib/format'
+import { usePlayAt } from '@/lib/usePlayAt'
 
 interface TrackInfo {
   title: string
@@ -23,12 +24,14 @@ interface Props {
   track?: TrackInfo         // shown when card is inside a list (My Resonances)
   matchCount?: number       // shown in My Resonances
   isOwn?: boolean           // true = "You", false = "Another listener"
+  postOwner?: UserRef       // when present and isOwn is false, links to their public profile
   href?: string             // wraps card in a link when provided
 }
 
 
-export function PostCard({ post, track, matchCount, isOwn, href }: Props) {
+export function PostCard({ post, track, matchCount, isOwn, postOwner, href }: Props) {
   const momentLabel = formatMoment(post.momentStartMs, post.momentEndMs)
+  const { play, status, message } = usePlayAt()
 
   const inner = (
     <div className="space-y-3 rounded-2xl border border-border bg-card p-4 transition-colors">
@@ -62,8 +65,28 @@ export function PostCard({ post, track, matchCount, isOwn, href }: Props) {
         </div>
       )}
 
-      {/* Moment timestamp */}
-      <p className="text-xs font-medium text-accent tabular-nums">{momentLabel}</p>
+      {/* Moment timestamp — tap to play on Spotify from this position.
+          preventDefault + stopPropagation so this works correctly even when
+          the whole card is wrapped in the <a href> below (nested interactive
+          elements rely on the click being stopped before native anchor
+          navigation fires). */}
+      <div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            void play(post.isrc, post.momentStartMs)
+          }}
+          disabled={status === 'loading'}
+          className="text-xs font-medium text-accent tabular-nums transition-opacity hover:underline disabled:opacity-50"
+        >
+          {status === 'loading' ? '…' : `▶ ${momentLabel}`}
+        </button>
+        {status === 'error' && message && (
+          <p className="mt-1 text-xs text-muted">{message}</p>
+        )}
+      </div>
 
       {/* Layer + sub-layer */}
       <div className="flex items-center gap-1.5">
@@ -108,9 +131,18 @@ export function PostCard({ post, track, matchCount, isOwn, href }: Props) {
       {(isOwn !== undefined || (typeof matchCount === 'number' && !track)) && (
         <div className="flex items-center justify-between border-t border-border pt-2">
           {isOwn !== undefined && (
-            <span className="text-xs text-muted">
-              {isOwn ? 'You' : 'Another listener'}
-            </span>
+            isOwn ? (
+              <span className="text-xs text-muted">You</span>
+            ) : postOwner ? (
+              <a
+                href={`/u/${postOwner.username}`}
+                className="text-xs text-accent hover:underline"
+              >
+                {postOwner.displayName ?? postOwner.username}
+              </a>
+            ) : (
+              <span className="text-xs text-muted">Another listener</span>
+            )
           )}
           {typeof matchCount === 'number' && !track && (
             <span className="text-xs text-muted">

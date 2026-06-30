@@ -129,7 +129,7 @@ export function CaptureModal({ track, pending, lrcLines, onSave, onDismiss }: Pr
                   Done
                 </button>
               </div>
-              <MatchResponse result={result} />
+              <MatchResponse result={result} trackTitle={track.title} />
             </div>
           )}
 

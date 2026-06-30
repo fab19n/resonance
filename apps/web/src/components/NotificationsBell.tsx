@@ -1,14 +1,36 @@
 // apps/web/src/components/NotificationsBell.tsx
+//
+// Relationship-level events only — requests, accepts, new shared matches.
+// Routine chat messages are NOT routed through here; that's MessagesIcon's job.
+
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
 import type { NotificationDTO, NotificationsResponse } from '@resonance/shared'
 
 function notificationText(n: NotificationDTO): string {
-  const track = n.trackTitle ? ` on “${n.trackTitle}”` : ''
-  if (n.matchTier === 0) return `Exact resonance${track}`
-  if (n.matchTier === 1) return `Same moment, different lens${track}`
-  return `Someone resonated with your moment${track}`
+  const track = n.trackTitle ? ` on "${n.trackTitle}"` : ''
+  switch (n.type) {
+    case 'conversation_request':
+      return 'Someone wants to connect with you'
+    case 'conversation_accepted':
+      return 'Your message was answered'
+    case 'new_match_anchor':
+      return `You resonated again${track}`
+    default:
+      if (n.matchTier === 0) return `Exact resonance${track}`
+      if (n.matchTier === 1) return `Same moment, different lens${track}`
+      return `Someone resonated with your moment${track}`
+  }
+}
+
+function notificationHref(n: NotificationDTO): string | null {
+  // Chat-related types route straight to the thread.
+  if (n.conversationId) return `/messages/${n.conversationId}`
+  // First-ever match with someone (no conversation yet) routes to the
+  // focused match view, where they can choose to start one.
+  if (n.type === 'new_match' && n.matchId) return `/matches/${n.matchId}`
+  return null
 }
 
 export function NotificationsBell() {
@@ -44,6 +66,15 @@ export function NotificationsBell() {
       await fetch(`/api/notifications/${n.id}/read`, { method: 'POST' })
       setUnread((u) => Math.max(0, u - 1))
     }
+
+    const href = notificationHref(n)
+    if (href) {
+      window.location.href = href
+      return
+    }
+
+    // Fallback — older notification types without a matchId/conversationId
+    // still route to the track so the tap always goes somewhere useful.
     if (n.isrc) {
       window.location.href = `/tracks/${encodeURIComponent(n.isrc)}`
     }
@@ -70,7 +101,6 @@ export function NotificationsBell() {
 
       {open && (
         <>
-          {/* click-away backdrop */}
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden="true" />
           <div className="absolute right-0 z-20 mt-2 w-80 overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">

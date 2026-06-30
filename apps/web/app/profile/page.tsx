@@ -7,7 +7,19 @@ import { AppHeader } from '@/components/AppHeader'
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<ProfileResponse | null>(null)
+  const [username, setUsername] = useState<string | null>(null)
   const [status, setStatus] = useState<'loading' | 'unauthed' | 'ready'>('loading')
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/auth/me')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && !cancelled) setUsername(data.username)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -37,7 +49,15 @@ export default function ProfilePage() {
     <main className="mx-auto min-h-screen max-w-md px-6 py-10">
       <AppHeader active="profile" />
       <h1 className="mb-1 text-2xl font-semibold tracking-tight">Listening Profile</h1>
-      <p className="mb-8 text-sm text-muted">How you hear, building over time.</p>
+      <p className="mb-2 text-sm text-muted">How you hear, building over time.</p>
+      {username && (
+        <a
+          href={`/u/${username}`}
+          className="mb-8 inline-block text-xs text-accent hover:underline"
+        >
+          View as others see you →
+        </a>
+      )}
 
       {status === 'loading' && <p className="text-muted">Loading…</p>}
       {status === 'unauthed' && (
