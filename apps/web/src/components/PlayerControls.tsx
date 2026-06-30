@@ -41,20 +41,17 @@ function useLongPress(
   }
 
   function onPointerUp() {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    if (intervalRef.current) clearInterval(intervalRef.current)
-
+    clearTimeout(timerRef.current)
+    clearInterval(intervalRef.current)
     if (!longPressActivated.current) {
       onSinglePress()
     }
-
     longPressActivated.current = false
   }
 
   function onPointerLeave() {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    if (intervalRef.current) clearInterval(intervalRef.current)
-
+    clearTimeout(timerRef.current)
+    clearInterval(intervalRef.current)
     longPressActivated.current = false
   }
 

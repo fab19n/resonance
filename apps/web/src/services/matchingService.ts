@@ -1,8 +1,9 @@
 // apps/web/src/services/matchingService.ts
 import { and, eq, gte, lte, ne } from 'drizzle-orm'
-import { TOLERANCE_WINDOW_MS, type MatchTier } from '@resonance/shared'
+import { TOLERANCE_WINDOW_MS, type MatchTier, type ConversationStatus } from '@resonance/shared'
 import type { Transaction } from '@/db'
 import { resonancePosts, postMatches, notifications } from '@/db/schema'
+import { attachMatchToConversation } from './conversationService'
 
 export interface RawMatch {
   post: typeof resonancePosts.$inferSelect
@@ -38,7 +39,6 @@ export async function findOverlappingPerceptions(
 ): Promise<RawMatch[]> {
   const effectiveEnd = momentEndMs ?? momentStartMs
 
-  // Broadened DB scan window — fetches all candidates that could possibly overlap
   const queryStart = momentStartMs - TOLERANCE_WINDOW_MS
   const queryEnd = effectiveEnd + TOLERANCE_WINDOW_MS
 
@@ -54,7 +54,6 @@ export async function findOverlappingPerceptions(
       ),
     )
 
-  // Application-layer overlap filter
   const overlapping = candidates.filter((post) => {
     const postEnd = post.momentEndMs ?? post.momentStartMs
     return (
@@ -69,10 +68,21 @@ export async function findOverlappingPerceptions(
   }))
 }
 
+/** Per-match conversation context, returned so the API response can be enriched. */
+export interface MatchPersistResult {
+  matchedPostId: string
+  conversationId: string | null
+  conversationStatus: ConversationStatus | null
+}
+
 /**
- * FR-3.3 / FR-3.4: persist match pairs and notify the owners of the
- * pre-existing matched posts. The new poster sees their matches synchronously
- * in the POST response, so only the earlier posters are notified here.
+ * FR-3.3 / FR-3.4: persist match pairs and notify.
+ *
+ * For each match, checks whether the new poster and the matched post's owner
+ * already have a conversation:
+ *   - no conversation   → standard 'new_match' notification to the earlier poster
+ *   - pending conversation → anchor appended silently, no notification
+ *   - active conversation  → anchor appended, BOTH users notified ('new_match_anchor')
  *
  * No-op when there are zero matches (the post stands as a pioneer until a
  * future post matches it).
@@ -80,11 +90,11 @@ export async function findOverlappingPerceptions(
 export async function persistMatchesAndNotify(
   tx: Transaction,
   newPostId: string,
+  newPosterId: string,
   matches: RawMatch[],
-): Promise<void> {
-  if (matches.length === 0) return
+): Promise<MatchPersistResult[]> {
+  if (matches.length === 0) return []
 
-  // postAId = the new post, postBId = the pre-existing matched post.
   const insertedMatches = await tx
     .insert(postMatches)
     .values(
@@ -96,15 +106,28 @@ export async function persistMatchesAndNotify(
     )
     .returning({ id: postMatches.id, postBId: postMatches.postBId })
 
-  const notifValues = insertedMatches.map((row) => {
+  const results: MatchPersistResult[] = []
+  const standardNotifValues: { userId: string; type: string; matchId: string }[] = []
+
+  for (const row of insertedMatches) {
     const matched = matches.find((m) => m.post.id === row.postBId)
     if (!matched) throw new Error('Match row/owner correlation failed')
-    return {
-      userId: matched.post.userId,
-      type: 'new_match',
-      matchId: row.id,
-    }
-  })
 
-  await tx.insert(notifications).values(notifValues)
+    const otherUserId = matched.post.userId
+    const convoResult = await attachMatchToConversation(tx, newPosterId, otherUserId, row.id)
+
+    results.push({ matchedPostId: matched.post.id, ...convoResult })
+
+    // Standard notification only fires when there's no existing conversation —
+    // if one exists, attachMatchToConversation already handled notifying.
+    if (convoResult.conversationId === null) {
+      standardNotifValues.push({ userId: otherUserId, type: 'new_match', matchId: row.id })
+    }
+  }
+
+  if (standardNotifValues.length > 0) {
+    await tx.insert(notifications).values(standardNotifValues)
+  }
+
+  return results
 }

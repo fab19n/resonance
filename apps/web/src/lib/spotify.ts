@@ -4,7 +4,7 @@
 
 import { createHash, randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
-import type { TrackSummary } from '@resonance/shared'
+import type { TrackSummary, PlayAtErrorCode } from '@resonance/shared'
 import { db } from '@/db'
 import { users } from '@/db/schema'
 
@@ -286,4 +286,46 @@ export async function previousTrack(accessToken: string): Promise<void> {
   if (!res.ok && res.status !== 204) {
     throw new Error(`Spotify previous failed: ${res.status} ${await res.text()}`)
   }
+}
+
+/**
+ * Starts playback of a specific track at a specific position on the user's
+ * active device. Reads Spotify's `error.reason` to differentiate the two
+ * common, user-actionable failure modes (no device open vs. not Premium)
+ * from anything else, so the UI can show an accurate inline message.
+ */
+export async function playTrackAt(
+  accessToken: string,
+  spotifyTrackId: string,
+  positionMs: number,
+): Promise<{ ok: boolean; errorCode?: PlayAtErrorCode }> {
+  const res = await fetch(`${API_BASE}/me/player/play`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      uris: [`spotify:track:${spotifyTrackId}`],
+      position_ms: positionMs,
+    }),
+  })
+
+  if (res.status === 204) return { ok: true }
+
+  let reason: string | undefined
+  try {
+    const data = (await res.json()) as { error?: { reason?: string } }
+    reason = data.error?.reason
+  } catch {
+    // body wasn't JSON — fall through to status-based classification
+  }
+
+  if (res.status === 404 || reason === 'NO_ACTIVE_DEVICE') {
+    return { ok: false, errorCode: 'no_active_device' }
+  }
+  if (res.status === 403 && reason === 'PREMIUM_REQUIRED') {
+    return { ok: false, errorCode: 'premium_required' }
+  }
+  return { ok: false, errorCode: 'unknown' }
 }

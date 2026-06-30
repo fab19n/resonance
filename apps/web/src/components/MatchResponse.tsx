@@ -1,17 +1,63 @@
 // apps/web/src/components/MatchResponse.tsx
 'use client'
 
+import { useState } from 'react'
 import type { CreatePostResponse, MatchResult } from '@resonance/shared'
 import { PostCard } from './PostCard'
+import { StartConversationModal } from './StartConversationModal'
+
+function MatchCard({ match, trackTitle }: { match: MatchResult; trackTitle: string }) {
+  const [showModal, setShowModal] = useState(false)
+  const [conversationId, setConversationId] = useState<string | null>(match.conversationId ?? null)
+  const [conversationStatus, setConversationStatus] = useState(match.conversationStatus ?? null)
+
+  return (
+    <div className="space-y-2">
+      <PostCard post={match.post} isOwn={false} postOwner={match.postOwner} />
+
+      {conversationId ? (
+        <a
+          href={`/messages/${conversationId}`}
+          className="block rounded-full border border-accent/30 py-2 text-center text-xs font-medium text-accent transition-colors hover:bg-accent/5"
+        >
+          {conversationStatus === 'active' ? 'View conversation' : 'View your message'}
+        </a>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowModal(true)}
+          className="block w-full rounded-full border border-accent/30 py-2 text-center text-xs font-medium text-accent transition-colors hover:bg-accent/5"
+        >
+          Start a conversation
+        </button>
+      )}
+
+      {showModal && (
+        <StartConversationModal
+          match={match}
+          trackTitle={trackTitle}
+          onSent={(id) => {
+            setConversationId(id)
+            setConversationStatus('pending')
+            setShowModal(false)
+          }}
+          onDismiss={() => setShowModal(false)}
+        />
+      )}
+    </div>
+  )
+}
 
 function MatchSection({
   title,
   subtitle,
   matches,
+  trackTitle,
 }: {
   title: string
   subtitle: string
   matches: MatchResult[]
+  trackTitle: string
 }) {
   return (
     <section className="space-y-2">
@@ -20,13 +66,19 @@ function MatchSection({
         <p className="text-xs text-muted">{subtitle}</p>
       </div>
       {matches.map((m) => (
-        <PostCard key={m.post.id} post={m.post} isOwn={false} />
+        <MatchCard key={m.post.id} match={m} trackTitle={trackTitle} />
       ))}
     </section>
   )
 }
 
-export function MatchResponse({ result }: { result: CreatePostResponse }) {
+export function MatchResponse({
+  result,
+  trackTitle,
+}: {
+  result: CreatePostResponse
+  trackTitle: string
+}) {
   if (result.isPioneer) {
     return (
       <div className="rounded-2xl border border-border bg-card p-5 text-center">
@@ -48,6 +100,7 @@ export function MatchResponse({ result }: { result: CreatePostResponse }) {
           title="Exact resonance"
           subtitle="Same moment, same way of hearing it."
           matches={tier0}
+          trackTitle={trackTitle}
         />
       )}
       {tier1.length > 0 && (
@@ -55,6 +108,7 @@ export function MatchResponse({ result }: { result: CreatePostResponse }) {
           title="Same moment, different lens"
           subtitle="Others noticed something else here."
           matches={tier1}
+          trackTitle={trackTitle}
         />
       )}
     </div>

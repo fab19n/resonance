@@ -1,9 +1,19 @@
 // apps/web/src/components/SyncedLyricsDisplay.tsx
+//
+// Interactive lyrics display:
+//   - Auto-scrolls to keep active line centred during playback
+//   - onScroll (debounced 300ms) → seek, mapped proportionally to durationMs
+//   - While dragging: live highlight follows the scroll target (not the
+//     playback position), and a time badge tracks alongside the scrollbar —
+//     same pattern as iOS Contacts' fast-scroll index bubble. Both vanish
+//     the instant the drag settles.
+//   - onClick on each line → multi-select up to 6 lines for capture
 
 'use client'
 
 import { useRef, useState, useEffect, useMemo } from 'react'
 import type { LrcLine } from '@resonance/shared'
+import { formatTime } from '@/lib/format'
 
 const LINE_HEIGHT = 44
 const CONTAINER_HEIGHT = 220
@@ -14,7 +24,7 @@ const MAX_SELECTED = 6
 interface Props {
   lines: LrcLine[]
   progressMs: number
-  durationMs: number          // full track duration for proportional seek
+  durationMs: number
   onSeek: (ms: number) => void
   onLyricsCapture: (startMs: number, endMs: number, lyricText: string) => void
 }
@@ -34,10 +44,17 @@ export function SyncedLyricsDisplay({
   const scrollDebounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const resumeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  // Multi-select: up to MAX_SELECTED individual lines (non-contiguous)
   const [selectedIndices, setSelectedIndices] = useState<number[]>([])
 
-  // Active line from playback position
+  // Live drag feedback — updates immediately on every scroll event, separate
+  // from the debounced seek action, so the highlight + badge feel instant.
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragTargetIndex, setDragTargetIndex] = useState<number | null>(null)
+  const [scrollRatio, setScrollRatio] = useState(0) // 0..1, badge position along the scrollbar
+
+  // .entries() rather than a classic index loop — under noUncheckedIndexedAccess,
+  // lines[i] types as LrcLine | undefined, but destructuring from .entries()
+  // gives `line` as a real LrcLine with no indexing involved at all.
   const activeIndex = useMemo(() => {
     let idx = 0
     for (const [i, line] of lines.entries()) {
@@ -47,48 +64,53 @@ export function SyncedLyricsDisplay({
     return idx
   }, [lines, progressMs])
 
-  // ── Auto-scroll ───────────────────────────────────────────────────────────
   // scrollTop = activeIndex * LINE_HEIGHT centres line i in the viewport
-  // (proof: padding_top = CONTAINER_HEIGHT/2 - LINE_HEIGHT/2, so centre of
-  //  line i = CONTAINER_HEIGHT/2 + i*LINE_HEIGHT, viewport centre = scrollTop +
-  //  CONTAINER_HEIGHT/2, solve → scrollTop = i * LINE_HEIGHT)
-
+  // (padding_top = CONTAINER_HEIGHT/2 - LINE_HEIGHT/2, so centre of line i =
+  //  CONTAINER_HEIGHT/2 + i*LINE_HEIGHT; viewport centre = scrollTop +
+  //  CONTAINER_HEIGHT/2; solving for scrollTop gives i * LINE_HEIGHT)
   useEffect(() => {
     if (isUserScrolling.current) return
     const container = containerRef.current
     if (!container) return
-
     isProgrammaticScroll.current = true
     clearTimeout(programmaticTimer.current)
-
     container.scrollTo({ top: Math.max(0, activeIndex * LINE_HEIGHT), behavior: 'smooth' })
-
     programmaticTimer.current = setTimeout(() => {
       isProgrammaticScroll.current = false
     }, 600)
   }, [activeIndex])
 
-  // ── Scroll → seek ─────────────────────────────────────────────────────────
-  // Maps scroll position proportionally to the full track duration so:
-  //   scrollTop = 0           → seekMs = 0   (track start, regardless of first lyric)
-  //   scrollTop = maxScrollTop → seekMs = durationMs (track end)
-
   function handleScroll() {
     if (isProgrammaticScroll.current) return
 
     isUserScrolling.current = true
+    setIsDragging(true)
+
+    const container = containerRef.current
+    if (container) {
+      const maxScrollTop = Math.max(1, (lines.length - 1) * LINE_HEIGHT)
+      const centeredIndex = Math.min(
+        Math.max(0, Math.round(container.scrollTop / LINE_HEIGHT)),
+        lines.length - 1,
+      )
+      setDragTargetIndex(centeredIndex)
+      setScrollRatio(Math.min(1, Math.max(0, container.scrollTop / maxScrollTop)))
+    }
+
     clearTimeout(scrollDebounce.current)
     scrollDebounce.current = setTimeout(() => {
-      const container = containerRef.current
-      if (!container || durationMs <= 0) return
+      const c = containerRef.current
+      if (!c || durationMs <= 0) return
 
-      // maxScrollTop = (lines.length - 1) * LINE_HEIGHT
-      // (the scroll range that moves from first line centred to last line centred)
+      // Proportional to the full track duration — scrolling all the way up
+      // always seeks to 0:00 regardless of where the first lyric sits, and
+      // all the way down always reaches the true end of the track.
       const maxScrollTop = Math.max(1, (lines.length - 1) * LINE_HEIGHT)
-      const ratio = Math.min(1, Math.max(0, container.scrollTop / maxScrollTop))
-      const seekMs = Math.round(ratio * durationMs)
+      const ratio = Math.min(1, Math.max(0, c.scrollTop / maxScrollTop))
+      onSeek(Math.round(ratio * durationMs))
 
-      onSeek(seekMs)
+      setIsDragging(false)
+      setDragTargetIndex(null)
 
       clearTimeout(resumeTimer.current)
       resumeTimer.current = setTimeout(() => {
@@ -97,13 +119,9 @@ export function SyncedLyricsDisplay({
     }, SCROLL_DEBOUNCE)
   }
 
-  // ── Line tap → multi-select ───────────────────────────────────────────────
-
   function handleLineTap(index: number) {
     setSelectedIndices((prev) => {
-      if (prev.includes(index)) {
-        return prev.filter((i) => i !== index)
-      }
+      if (prev.includes(index)) return prev.filter((i) => i !== index)
       if (prev.length >= MAX_SELECTED) return prev
       return [...prev, index]
     })
@@ -126,23 +144,27 @@ export function SyncedLyricsDisplay({
     onLyricsCapture(startMs, endMs, lyricText)
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
   function lineClasses(index: number): string {
     const isActive = index === activeIndex
     const isSelected = selectedIndices.includes(index)
-    const distance = Math.abs(index - activeIndex)
+    const isDragTarget = isDragging && index === dragTargetIndex
 
+    // While dragging, fade out from the drag target instead of the playback
+    // position — the visible lines "open up" naturally around wherever
+    // you're scrubbing, giving an immediate sense of where you'd land.
+    const referenceIndex = isDragging && dragTargetIndex !== null ? dragTargetIndex : activeIndex
+    const distance = Math.abs(index - referenceIndex)
+
+    if (isDragTarget) return 'text-foreground font-semibold bg-accent/12 rounded-lg ring-1 ring-accent/40'
     if (isSelected) return 'text-foreground font-medium bg-accent/15 rounded-lg'
-    if (isActive) return 'text-foreground font-semibold'
+    if (isActive && !isDragging) return 'text-foreground font-semibold'
     if (distance <= 1) return 'text-foreground/65'
     if (distance <= 3) return 'text-muted/50'
     return 'text-muted/25'
   }
 
   return (
-    <div className="space-y-1">
-      {/* Scrollable lyrics list — thin custom scrollbar */}
+    <div className="relative space-y-1">
       <div
         ref={containerRef}
         onScroll={handleScroll}
@@ -153,16 +175,13 @@ export function SyncedLyricsDisplay({
         }}
         className={[
           'overflow-y-auto overscroll-contain',
-          // Webkit thin scrollbar
           '[&::-webkit-scrollbar]:w-1',
           '[&::-webkit-scrollbar-track]:bg-transparent',
           '[&::-webkit-scrollbar-thumb]:rounded-full',
           '[&::-webkit-scrollbar-thumb]:bg-border',
         ].join(' ')}
       >
-        {/* Top padding: first line centred at scrollTop=0 */}
         <div style={{ height: CONTAINER_HEIGHT / 2 - LINE_HEIGHT / 2 }} />
-
         {lines.map((line, i) => (
           <div
             key={i}
@@ -174,17 +193,25 @@ export function SyncedLyricsDisplay({
               lineClasses(i),
             ].join(' ')}
           >
-            <span className="w-full truncate text-center">
-              {line.text || '♩'}
-            </span>
+            <span className="w-full truncate text-center">{line.text || '♩'}</span>
           </div>
         ))}
-
-        {/* Bottom padding: last line centred at max scrollTop */}
         <div style={{ height: CONTAINER_HEIGHT / 2 - LINE_HEIGHT / 2 }} />
       </div>
 
-      {/* Selection counter + hint */}
+      {/* Time badge — tracks alongside the scrollbar, only while dragging.
+          Non-null: dragTargetIndex is always set from a value clamped into
+          [0, lines.length - 1] in handleScroll, so the lookup is guaranteed
+          in-bounds even though TS can't prove that itself. */}
+      {isDragging && dragTargetIndex !== null && (
+        <div
+          className="pointer-events-none absolute right-2 -translate-y-1/2 rounded-full bg-accent px-2 py-1 text-[11px] font-medium tabular-nums text-accent-foreground shadow"
+          style={{ top: `${scrollRatio * 100}%` }}
+        >
+          {formatTime(lines[dragTargetIndex]!.timestampMs)}
+        </div>
+      )}
+
       {selectedIndices.length > 0 && (
         <p className="text-center text-xs text-muted/60">
           {selectedIndices.length} line{selectedIndices.length > 1 ? 's' : ''} selected
@@ -192,7 +219,6 @@ export function SyncedLyricsDisplay({
         </p>
       )}
 
-      {/* Capture strip */}
       {selectedIndices.length > 0 && (
         <div className="flex items-center gap-2 pt-0.5">
           <button
@@ -212,11 +238,8 @@ export function SyncedLyricsDisplay({
         </div>
       )}
 
-      {/* Scroll hint when idle */}
-      {selectedIndices.length === 0 && (
-        <p className="text-center text-xs text-muted/35">
-          Scroll to seek · tap lines to capture
-        </p>
+      {selectedIndices.length === 0 && !isDragging && (
+        <p className="text-center text-xs text-muted/35">Scroll to seek · tap lines to capture</p>
       )}
     </div>
   )

@@ -2,6 +2,7 @@
 'use client'
 
 import { NotificationsBell } from './NotificationsBell'
+import { MessagesIcon } from './MessagesIcon'
 import { ThemeToggle } from './ThemeToggle'
 
 type Surface = 'capture' | 'resonances' | 'profile'
@@ -31,6 +32,7 @@ export function AppHeader({ active }: { active?: Surface }) {
         ))}
       </nav>
       <div className="flex items-center gap-2">
+        <MessagesIcon />
         <NotificationsBell />
         <ThemeToggle />
       </div>

@@ -88,16 +88,66 @@ export const postMatches = pgTable('post_matches', {
   index('post_matches_b_idx').on(table.postBId),
 ])
 
+// ── Conversations ────────────────────────────────────────────────────────────
+// One row per user pair, ever (enforced by user_pair_uniq). userAId/userBId
+// are stored in canonical order (smaller UUID first) by the service layer so
+// the unique constraint catches the pair regardless of who initiated.
+// status: 'pending' (initiator sent opener, awaiting reply, no expiry) |
+//         'active' (recipient replied — free messaging both ways)
+export const conversations = pgTable('conversations', {
+  id:            uuid('id').primaryKey().defaultRandom(),
+  userAId:       uuid('user_a_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  userBId:       uuid('user_b_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  initiatorId:   uuid('initiator_id').references(() => users.id).notNull(),
+  anchorMatchId: uuid('anchor_match_id').references(() => postMatches.id).notNull(),
+  status:        varchar('status', { length: 20 }).notNull().default('pending'),
+  ignoredAt:     timestamp('ignored_at'),          // soft-hide, recipient side only
+  lastReadAtA:   timestamp('last_read_at_a'),
+  lastReadAtB:   timestamp('last_read_at_b'),
+  createdAt:     timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  index('conversations_user_a_idx').on(table.userAId),
+  index('conversations_user_b_idx').on(table.userBId),
+  unique('user_pair_uniq').on(table.userAId, table.userBId),
+])
+
+// ── Messages ─────────────────────────────────────────────────────────────────
+export const messages = pgTable('messages', {
+  id:             uuid('id').primaryKey().defaultRandom(),
+  conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'cascade' }).notNull(),
+  senderId:       uuid('sender_id').references(() => users.id).notNull(),
+  body:           text('body').notNull(),
+  createdAt:      timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  index('messages_conversation_idx').on(table.conversationId, table.createdAt),
+])
+
+// ── Conversation Anchors ─────────────────────────────────────────────────────
+// Matches found between two users who already have a conversation. The
+// conversation's own anchorMatchId covers the first match; this table covers
+// every match found after that, appended to the same thread.
+export const conversationAnchors = pgTable('conversation_anchors', {
+  id:             uuid('id').primaryKey().defaultRandom(),
+  conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'cascade' }).notNull(),
+  matchId:        uuid('match_id').references(() => postMatches.id).notNull(),
+  createdAt:      timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  unique('conversation_match_uniq').on(table.conversationId, table.matchId),
+])
+
 // ── Notifications ───────────────────────────────────────────────────────────
-// In-app only (no email at MVP). Currently one type: 'new_match'.
-// Pioneer state: notification pre-created on zero-match posts, fired later.
+// In-app only (no email at MVP).
+// types: 'new_match' | 'new_match_anchor' | 'conversation_request' | 'conversation_accepted'
+// conversationId lets the bell route taps for chat-related types straight to
+// the thread instead of the track view.
 export const notifications = pgTable('notifications', {
-  id:        uuid('id').primaryKey().defaultRandom(),
-  userId:    uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  type:      varchar('type', { length: 50 }).notNull(),
-  matchId:   uuid('match_id').references(() => postMatches.id),
-  read:      boolean('read').default(false).notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+  id:             uuid('id').primaryKey().defaultRandom(),
+  userId:         uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  type:           varchar('type', { length: 50 }).notNull(),
+  matchId:        uuid('match_id').references(() => postMatches.id),
+  conversationId: uuid('conversation_id').references(() => conversations.id),
+  read:           boolean('read').default(false).notNull(),
+  createdAt:      timestamp('created_at').defaultNow().notNull(),
 }, (table) => [
   index('user_notif_idx').on(table.userId, table.read),
 ])
