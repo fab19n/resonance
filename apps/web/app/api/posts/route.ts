@@ -5,6 +5,7 @@ import {
   ALL_PREDEFINED_TAGS,
   MAX_TAGS_PER_POST,
   MAX_CUSTOM_TAG_LENGTH,
+  isValidSubLayer,
   type CreateResonancePayload,
   type FocusType,
   type TrackSummary,
@@ -43,14 +44,42 @@ function parsePayload(body: unknown): ParseResult {
   }
   const b = body as Record<string, unknown>
 
+  // focusType
   if (!FOCUS_TYPES.includes(b.focusType as FocusType)) {
     return { ok: false, error: `focusType must be one of: ${FOCUS_TYPES.join(', ')}` }
   }
+  const focusType = b.focusType as FocusType
 
-  if (typeof b.progressMs !== 'number' || !Number.isInteger(b.progressMs) || b.progressMs < 0) {
-    return { ok: false, error: 'progressMs must be a non-negative integer' }
+  // momentStartMs (required)
+  if (typeof b.momentStartMs !== 'number' || !Number.isInteger(b.momentStartMs) || b.momentStartMs < 0) {
+    return { ok: false, error: 'momentStartMs must be a non-negative integer' }
   }
 
+  // momentEndMs (optional — null or absent = point capture)
+  let momentEndMs: number | null = null
+  if (b.momentEndMs !== undefined && b.momentEndMs !== null) {
+    if (typeof b.momentEndMs !== 'number' || !Number.isInteger(b.momentEndMs) || b.momentEndMs < 0) {
+      return { ok: false, error: 'momentEndMs must be a non-negative integer when provided' }
+    }
+    if (b.momentEndMs <= b.momentStartMs) {
+      return { ok: false, error: 'momentEndMs must be greater than momentStartMs' }
+    }
+    momentEndMs = b.momentEndMs
+  }
+
+  // subLayer (optional — must be valid for the chosen focusType when present)
+  let subLayer: string | null = null
+  if (b.subLayer !== undefined && b.subLayer !== null) {
+    if (typeof b.subLayer !== 'string') {
+      return { ok: false, error: 'subLayer must be a string when provided' }
+    }
+    if (!isValidSubLayer(focusType, b.subLayer)) {
+      return { ok: false, error: `"${b.subLayer}" is not a valid sub-layer for focus type "${focusType}"` }
+    }
+    subLayer = b.subLayer
+  }
+
+  // sensoryTags
   if (!Array.isArray(b.sensoryTags)) {
     return { ok: false, error: 'sensoryTags must be an array' }
   }
@@ -71,10 +100,21 @@ function parsePayload(body: unknown): ParseResult {
     }
   }
 
+  // lyricText (optional)
+  let lyricText: string | null = null
+  if (b.lyricText !== undefined && b.lyricText !== null) {
+    if (typeof b.lyricText !== 'string') {
+      return { ok: false, error: 'lyricText must be a string when provided' }
+    }
+    lyricText = b.lyricText
+  }
+
+  // reflection (optional)
   if (b.reflection !== undefined && typeof b.reflection !== 'string') {
     return { ok: false, error: 'reflection must be a string when provided' }
   }
 
+  // track
   const track = parseTrack(b.track)
   if (!track) {
     return {
@@ -87,9 +127,12 @@ function parsePayload(body: unknown): ParseResult {
     ok: true,
     payload: {
       track,
-      progressMs: b.progressMs,
-      focusType: b.focusType as FocusType,
+      momentStartMs: b.momentStartMs,
+      momentEndMs,
+      focusType,
+      subLayer,
       sensoryTags: b.sensoryTags as string[],
+      lyricText,
       reflection: b.reflection as string | undefined,
     },
   }

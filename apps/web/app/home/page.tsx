@@ -2,9 +2,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { CurrentUser } from '@resonance/shared'
 import { AppHeader } from '@/components/AppHeader'
-import { CaptureFlow } from '@/components/CaptureFlow'
+import { PlayerScreen } from '@/components/PlayerScreen'
 
 export default function HomePage() {
   const [status, setStatus] = useState<'loading' | 'unauthed' | 'ready'>('loading')
@@ -14,7 +13,6 @@ export default function HomePage() {
     fetch('/api/auth/me')
       .then((res) => {
         if (!cancelled) setStatus(res.ok ? 'ready' : 'unauthed')
-        return res.ok ? (res.json() as Promise<CurrentUser>) : null
       })
       .catch(() => {
         if (!cancelled) setStatus('unauthed')
@@ -37,7 +35,7 @@ export default function HomePage() {
           </a>
         </div>
       )}
-      {status === 'ready' && <CaptureFlow />}
+      {status === 'ready' && <PlayerScreen />}
     </main>
   )
 }

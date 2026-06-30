@@ -1,7 +1,6 @@
 // apps/web/src/lib/spotify.ts
-//
-// All Spotify Web API interaction. PKCE flow (no client secret). Access tokens
-// are stored per-user in the DB and refreshed transparently before each call.
+// Phase 1 version + resumePlayback + pausePlayback
+// All Spotify Web API interaction. PKCE flow (no client secret).
 
 import { createHash, randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
@@ -35,8 +34,6 @@ function scopes(): string {
 // ── PKCE ────────────────────────────────────────────────────────────────────
 
 export function generateCodeVerifier(): string {
-  // 64 random bytes → 86-char base64url string (within the 43–128 range,
-  // and base64url chars are all valid verifier characters).
   return randomBytes(64).toString('base64url')
 }
 
@@ -109,11 +106,6 @@ async function refreshAccessToken(refreshToken: string): Promise<SpotifyTokenRes
   return res.json() as Promise<SpotifyTokenResponse>
 }
 
-/**
- * Returns a valid access token for the user, refreshing + persisting it first
- * if it is within 60s of expiry. Spotify may rotate the refresh token, so a
- * returned refresh_token is persisted too.
- */
 export async function getValidAccessToken(user: DbUser): Promise<string> {
   const expiresAt = user.spotifyTokenExpiresAt.getTime()
   if (Date.now() < expiresAt - 60_000) {
@@ -191,7 +183,6 @@ export async function getCurrentlyPlaying(accessToken: string): Promise<NowPlayi
     headers: { Authorization: `Bearer ${accessToken}` },
   })
 
-  // 204 = nothing is currently playing.
   if (res.status === 204) {
     return { isPlaying: false, progressMs: null, track: null }
   }
@@ -227,4 +218,72 @@ export async function searchTracks(accessToken: string, query: string): Promise<
 
   const data = (await res.json()) as { tracks: { items: SpotifyTrackItem[] } }
   return data.tracks.items.map(mapTrack)
+}
+
+/**
+ * Seeks Spotify playback to a specific position.
+ * Requires user-modify-playback-state scope.
+ */
+export async function seekToPosition(accessToken: string, positionMs: number): Promise<void> {
+  const url = new URL(`${API_BASE}/me/player/seek`)
+  url.search = new URLSearchParams({ position_ms: String(positionMs) }).toString()
+
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`Spotify seek failed: ${res.status} ${await res.text()}`)
+  }
+}
+
+/**
+ * Resumes Spotify playback on the active device.
+ * Requires user-modify-playback-state scope.
+ */
+export async function resumePlayback(accessToken: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/me/player/play`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`Spotify play failed: ${res.status} ${await res.text()}`)
+  }
+}
+
+/**
+ * Pauses Spotify playback on the active device.
+ * Requires user-modify-playback-state scope.
+ */
+export async function pausePlayback(accessToken: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/me/player/pause`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`Spotify pause failed: ${res.status} ${await res.text()}`)
+  }
+}
+
+export async function nextTrack(accessToken: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/me/player/next`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`Spotify next failed: ${res.status} ${await res.text()}`)
+  }
+}
+
+export async function previousTrack(accessToken: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/me/player/previous`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`Spotify previous failed: ${res.status} ${await res.text()}`)
+  }
 }

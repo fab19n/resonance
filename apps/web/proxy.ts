@@ -12,7 +12,14 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PROTECTED = ['/api/posts', '/api/spotify', '/api/profile', '/api/notifications']
+const PROTECTED = [
+  '/api/posts',
+  '/api/spotify',
+  '/api/profile',
+  '/api/notifications',
+  '/api/lyrics',   // LRCLib proxy — requires auth
+  '/api/tracks',   // track moments — requires auth
+]
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -25,7 +32,7 @@ export function proxy(request: NextRequest) {
   }
 
   // Token present → let the request through. The route handler verifies the
-  // JWT signature and loads the user. (Milestone 2.)
+  // JWT signature and loads the user.
   return NextResponse.next()
 }
 

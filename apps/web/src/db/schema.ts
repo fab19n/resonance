@@ -7,7 +7,7 @@ import {
 // Mirrors FOCUS_TYPES in @resonance/shared — same values, same order.
 export const focusTypeEnum = pgEnum('focus_type', [
   'lyrics', 'beat', 'rhythm', 'production',
-  'instrumentation', 'emotion', 'structure',
+  'instrumentation', 'emotion', 'structure', 'vocals',
 ])
 
 // ── Users ──────────────────────────────────────────────────────────────────
@@ -53,27 +53,30 @@ export const platformTrackIds = pgTable('platform_track_ids', {
 
 // ── Resonance Posts ─────────────────────────────────────────────────────────
 export const resonancePosts = pgTable('resonance_posts', {
-  id:          uuid('id').primaryKey().defaultRandom(),
-  userId:      uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  isrc:        varchar('isrc', { length: 40 }).references(() => tracks.isrc).notNull(),
-  progressMs:  integer('progress_ms').notNull(),
-  focusType:   focusTypeEnum('focus_type').notNull(),
-  sensoryTags: text('sensory_tags').array(),
+  id:             uuid('id').primaryKey().defaultRandom(),
+  userId:         uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  isrc:           varchar('isrc', { length: 40 }).references(() => tracks.isrc).notNull(),
+  momentStartMs:  integer('moment_start_ms').notNull(),
+  momentEndMs:    integer('moment_end_ms'),          // null = point capture
+  focusType:      focusTypeEnum('focus_type').notNull(),
+  subLayer:       varchar('sub_layer', { length: 50 }),
+  sensoryTags:    text('sensory_tags').array(),
   // Predefined tags validated at API layer. Custom tags allowed (max 30 chars).
   // Max 6 tags total per post.
-  reflection:  text('reflection'),
-  createdAt:   timestamp('created_at').defaultNow().notNull(),
+  lyricText:      text('lyric_text'),                // set only on lyric-tap captures
+  reflection:     text('reflection'),
+  createdAt:      timestamp('created_at').defaultNow().notNull(),
 }, (table) => [
   // Powers the matching engine query (ISRC + time window range scan)
-  index('track_moment_idx').on(table.isrc, table.progressMs),
+  index('track_moment_idx').on(table.isrc, table.momentStartMs),
   // Powers the self-discovery dashboard and "My Resonances" queries
   index('user_posts_idx').on(table.userId, table.createdAt),
 ])
 
 // ── Post Matches ────────────────────────────────────────────────────────────
 // Persisted match records. Enables async notifications and match count display.
-// matchTier: 0 = exact (same ISRC + focusType + ±3000ms)
-//            1 = moment (same ISRC + ±3000ms, different focusType)
+// matchTier: 0 = exact (same ISRC + focusType + overlapping range)
+//            1 = moment (same ISRC + overlapping range, different focusType)
 export const postMatches = pgTable('post_matches', {
   id:        uuid('id').primaryKey().defaultRandom(),
   postAId:   uuid('post_a_id').references(() => resonancePosts.id, { onDelete: 'cascade' }).notNull(),

@@ -3,14 +3,9 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import {
-  FOCUS_TYPE_LABELS,
-  type CurrentUser,
-  type ResonancePostDTO,
-  type TrackMomentsResponse,
-} from '@resonance/shared'
+import type { CurrentUser, TrackMomentsResponse } from '@resonance/shared'
 import { AppHeader } from '@/components/AppHeader'
-import { TrackCard } from '@/components/TrackCard'
+import { PostCard } from '@/components/PostCard'
 import { formatTime } from '@/lib/format'
 
 export default function TrackPage() {
@@ -46,9 +41,7 @@ export default function TrackPage() {
       }
     }
     void load()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [isrc])
 
   return (
@@ -59,7 +52,9 @@ export default function TrackPage() {
       </a>
 
       {status === 'loading' && <p className="mt-4 text-muted">Loading…</p>}
-      {status === 'notfound' && <p className="mt-4 text-muted">No moments on this track yet.</p>}
+      {status === 'notfound' && (
+        <p className="mt-4 text-muted">No moments on this track yet.</p>
+      )}
       {status === 'unauthed' && (
         <a href="/login" className="mt-4 block text-accent hover:underline">
           Go to login →
@@ -68,24 +63,50 @@ export default function TrackPage() {
 
       {status === 'ready' && data && (
         <div className="mt-4 space-y-6">
-          <TrackCard
-            title={data.track.title}
-            artist={data.track.artist}
-            albumArt={data.track.albumArt}
-          />
+          {/* Track header */}
+          <div className="flex items-center gap-3">
+            {data.track.albumArt ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={data.track.albumArt}
+                alt=""
+                width={56}
+                height={56}
+                className="rounded-xl"
+              />
+            ) : (
+              <div className="h-14 w-14 rounded-xl bg-border" />
+            )}
+            <div className="min-w-0">
+              <p className="truncate font-semibold">{data.track.title}</p>
+              <p className="truncate text-sm text-muted">{data.track.artist}</p>
+              <p className="text-xs text-muted/60">
+                {formatTime(data.track.durationMs)}
+              </p>
+            </div>
+          </div>
 
+          {/* Moment clusters */}
           {data.clusters.map((cluster, i) => {
             const shared = cluster.posts.length > 1
             return (
               <section key={`${cluster.centerMs}-${i}`} className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-semibold">Moment at {formatTime(cluster.centerMs)}</h2>
+                  <h2 className="text-sm font-semibold">
+                    Moment at {formatTime(cluster.centerMs)}
+                  </h2>
                   <span className="text-xs text-muted">
-                    {shared ? `${cluster.posts.length} listeners` : 'Unclaimed moment'}
+                    {shared
+                      ? `${cluster.posts.length} listeners`
+                      : 'Unclaimed moment'}
                   </span>
                 </div>
                 {cluster.posts.map((post) => (
-                  <PostRow key={post.id} post={post} isOwn={post.userId === meId} />
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    isOwn={post.userId === meId}
+                  />
                 ))}
               </section>
             )
@@ -93,26 +114,5 @@ export default function TrackPage() {
         </div>
       )}
     </main>
-  )
-}
-
-function PostRow({ post, isOwn }: { post: ResonancePostDTO; isOwn: boolean }) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-3">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">{FOCUS_TYPE_LABELS[post.focusType]}</span>
-        <span className="text-xs text-muted">{isOwn ? 'You' : 'Another listener'}</span>
-      </div>
-      {post.sensoryTags && post.sensoryTags.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {post.sensoryTags.map((tag) => (
-            <span key={tag} className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
-      {post.reflection && <p className="mt-2 text-sm">{post.reflection}</p>}
-    </div>
   )
 }

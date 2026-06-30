@@ -8,17 +8,27 @@ import { findOverlappingPerceptions, persistMatchesAndNotify } from './matchingS
 /**
  * The full capture pipeline, run in a single transaction so a post is never
  * persisted without its matches (and vice versa):
- *   1. upsert the track  (FK target for the post)
- *   2. map the Spotify id → ISRC  (auxiliary cross-platform lookup)
- *   3. insert the post
- *   4. run the matching engine
- *   5. persist matches + notify earlier posters
+ *   1. Upsert the track  (FK target for the post)
+ *   2. Map the Spotify ID → ISRC  (auxiliary cross-platform lookup)
+ *   3. Insert the post
+ *   4. Run the matching engine (range-aware)
+ *   5. Persist matches + notify earlier posters
  */
 export async function createResonancePost(
   userId: string,
   payload: CreateResonancePayload,
 ): Promise<CreatePostResponse> {
-  const { track, progressMs, focusType, sensoryTags, reflection } = payload
+  const {
+    track,
+    momentStartMs,
+    momentEndMs,
+    focusType,
+    subLayer,
+    sensoryTags,
+    lyricText,
+    reflection,
+  } = payload
+
   const isrcSource = track.isrc.startsWith('spotify:') ? 'spotify_fallback' : 'verified'
 
   return db.transaction(async (tx) => {
@@ -53,20 +63,24 @@ export async function createResonancePost(
       .values({
         userId,
         isrc: track.isrc,
-        progressMs,
+        momentStartMs,
+        momentEndMs: momentEndMs ?? null,
         focusType,
+        subLayer: subLayer ?? null,
         sensoryTags: sensoryTags.length > 0 ? sensoryTags : null,
+        lyricText: lyricText ?? null,
         reflection: reflection ?? null,
       })
       .returning()
     if (!post) throw new Error('Failed to insert resonance post')
 
-    // 4. Match.
+    // 4. Match (range-aware).
     const rawMatches = await findOverlappingPerceptions(
       tx,
       userId,
       track.isrc,
-      progressMs,
+      momentStartMs,
+      momentEndMs ?? null,
       focusType,
     )
 
