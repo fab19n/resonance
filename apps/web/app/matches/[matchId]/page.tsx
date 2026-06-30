@@ -4,7 +4,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import type { MatchDetailResponse, MatchResult } from '@resonance/shared'
-import { FOCUS_TYPE_LABELS } from '@resonance/shared'
 import { AppHeader } from '@/components/AppHeader'
 import { PostCard } from '@/components/PostCard'
 import { StartConversationModal } from '@/components/StartConversationModal'
