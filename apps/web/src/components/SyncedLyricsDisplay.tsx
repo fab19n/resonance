@@ -30,9 +30,9 @@ export function SyncedLyricsDisplay({
 
   const isUserScrolling = useRef(false)
   const isProgrammaticScroll = useRef(false)
-  const programmaticTimer = useRef<ReturnType<typeof setTimeout>>()
-  const scrollDebounce = useRef<ReturnType<typeof setTimeout>>()
-  const resumeTimer = useRef<ReturnType<typeof setTimeout>>()
+  const programmaticTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const scrollDebounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const resumeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Multi-select: up to MAX_SELECTED individual lines (non-contiguous)
   const [selectedIndices, setSelectedIndices] = useState<number[]>([])
@@ -40,8 +40,8 @@ export function SyncedLyricsDisplay({
   // Active line from playback position
   const activeIndex = useMemo(() => {
     let idx = 0
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].timestampMs <= progressMs) idx = i
+    for (const [i, line] of lines.entries()) {
+      if (line.timestampMs <= progressMs) idx = i
       else break
     }
     return idx
@@ -116,9 +116,12 @@ export function SyncedLyricsDisplay({
   function handleCapture() {
     if (selectedIndices.length === 0) return
     const sorted = [...selectedIndices].sort((a, b) => a - b)
-    const startMs = lines[sorted[0]].timestampMs
-    const endMs = lines[sorted[sorted.length - 1]].timestampMs
-    const lyricText = sorted.map((i) => lines[i].text).filter(Boolean).join(' / ')
+    // Non-null: sorted is derived from selectedIndices, which only ever holds
+    // valid indices into `lines` (set via handleLineTap(i) in the map below),
+    // and the length check above guarantees sorted is non-empty.
+    const startMs = lines[sorted[0]!]!.timestampMs
+    const endMs = lines[sorted[sorted.length - 1]!]!.timestampMs
+    const lyricText = sorted.map((i) => lines[i]!.text).filter(Boolean).join(' / ')
     clearSelection()
     onLyricsCapture(startMs, endMs, lyricText)
   }

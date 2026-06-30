@@ -27,8 +27,8 @@ function useLongPress(
   onSinglePress: () => void,
   onSeekStep: () => void,
 ) {
-  const timerRef = useRef<ReturnType<typeof setTimeout>>()
-  const intervalRef = useRef<ReturnType<typeof setInterval>>()
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
   const longPressActivated = useRef(false)
 
   function onPointerDown() {
@@ -41,17 +41,20 @@ function useLongPress(
   }
 
   function onPointerUp() {
-    clearTimeout(timerRef.current)
-    clearInterval(intervalRef.current)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    if (intervalRef.current) clearInterval(intervalRef.current)
+
     if (!longPressActivated.current) {
       onSinglePress()
     }
+
     longPressActivated.current = false
   }
 
   function onPointerLeave() {
-    clearTimeout(timerRef.current)
-    clearInterval(intervalRef.current)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    if (intervalRef.current) clearInterval(intervalRef.current)
+
     longPressActivated.current = false
   }
 
