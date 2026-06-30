@@ -21,7 +21,7 @@ const MESSAGE_DURATION_MS = 5000
 export function usePlayAt() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [message, setMessage] = useState<string | null>(null)
-  const clearTimer = useRef<ReturnType<typeof setTimeout>>()
+  const clearTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const play = useCallback(async (isrc: string, positionMs: number) => {
     clearTimeout(clearTimer.current)

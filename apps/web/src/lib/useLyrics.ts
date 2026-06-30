@@ -29,8 +29,9 @@ function parseLrc(lrc: string): LrcLine[] {
   const RE = /\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/g
   let match: RegExpExecArray | null
   while ((match = RE.exec(lrc)) !== null) {
-    // Non-null: none of the four groups in RE are optional, so a successful
-    // match guarantees all of them are present.
+    // Non-null assertions: noUncheckedIndexedAccess types match[N] as
+    // string | undefined, but these groups are guaranteed present — the
+    // regex requires all four to match for RE.exec to succeed at all.
     const minutes = parseInt(match[1]!, 10)
     const seconds = parseInt(match[2]!, 10)
     const csRaw = match[3]!

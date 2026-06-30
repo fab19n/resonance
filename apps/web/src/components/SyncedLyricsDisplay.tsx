@@ -40,9 +40,9 @@ export function SyncedLyricsDisplay({
 
   const isUserScrolling = useRef(false)
   const isProgrammaticScroll = useRef(false)
-  const programmaticTimer = useRef<ReturnType<typeof setTimeout>>()
-  const scrollDebounce = useRef<ReturnType<typeof setTimeout>>()
-  const resumeTimer = useRef<ReturnType<typeof setTimeout>>()
+  const programmaticTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const scrollDebounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const resumeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const [selectedIndices, setSelectedIndices] = useState<number[]>([])
 
@@ -52,10 +52,13 @@ export function SyncedLyricsDisplay({
   const [dragTargetIndex, setDragTargetIndex] = useState<number | null>(null)
   const [scrollRatio, setScrollRatio] = useState(0) // 0..1, badge position along the scrollbar
 
+  // .entries() rather than a classic index loop — under noUncheckedIndexedAccess,
+  // lines[i] types as LrcLine | undefined, but destructuring from .entries()
+  // gives `line` as a real LrcLine with no indexing involved at all.
   const activeIndex = useMemo(() => {
     let idx = 0
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].timestampMs <= progressMs) idx = i
+    for (const [i, line] of lines.entries()) {
+      if (line.timestampMs <= progressMs) idx = i
       else break
     }
     return idx
@@ -72,7 +75,9 @@ export function SyncedLyricsDisplay({
     isProgrammaticScroll.current = true
     clearTimeout(programmaticTimer.current)
     container.scrollTo({ top: Math.max(0, activeIndex * LINE_HEIGHT), behavior: 'smooth' })
-    programmaticTimer.current = setTimeout(() => { isProgrammaticScroll.current = false }, 600)
+    programmaticTimer.current = setTimeout(() => {
+      isProgrammaticScroll.current = false
+    }, 600)
   }, [activeIndex])
 
   function handleScroll() {
@@ -108,7 +113,9 @@ export function SyncedLyricsDisplay({
       setDragTargetIndex(null)
 
       clearTimeout(resumeTimer.current)
-      resumeTimer.current = setTimeout(() => { isUserScrolling.current = false }, RESUME_DELAY)
+      resumeTimer.current = setTimeout(() => {
+        isUserScrolling.current = false
+      }, RESUME_DELAY)
     }, SCROLL_DEBOUNCE)
   }
 
@@ -120,14 +127,19 @@ export function SyncedLyricsDisplay({
     })
   }
 
-  function clearSelection() { setSelectedIndices([]) }
+  function clearSelection() {
+    setSelectedIndices([])
+  }
 
   function handleCapture() {
     if (selectedIndices.length === 0) return
     const sorted = [...selectedIndices].sort((a, b) => a - b)
-    const startMs = lines[sorted[0]].timestampMs
-    const endMs = lines[sorted[sorted.length - 1]].timestampMs
-    const lyricText = sorted.map((i) => lines[i].text).filter(Boolean).join(' / ')
+    // Non-null: sorted is derived from selectedIndices, which only ever holds
+    // valid indices into `lines` (set via handleLineTap(i) in the map below),
+    // and the length check above guarantees sorted is non-empty.
+    const startMs = lines[sorted[0]!]!.timestampMs
+    const endMs = lines[sorted[sorted.length - 1]!]!.timestampMs
+    const lyricText = sorted.map((i) => lines[i]!.text).filter(Boolean).join(' / ')
     clearSelection()
     onLyricsCapture(startMs, endMs, lyricText)
   }
@@ -187,13 +199,16 @@ export function SyncedLyricsDisplay({
         <div style={{ height: CONTAINER_HEIGHT / 2 - LINE_HEIGHT / 2 }} />
       </div>
 
-      {/* Time badge — tracks alongside the scrollbar, only while dragging */}
+      {/* Time badge — tracks alongside the scrollbar, only while dragging.
+          Non-null: dragTargetIndex is always set from a value clamped into
+          [0, lines.length - 1] in handleScroll, so the lookup is guaranteed
+          in-bounds even though TS can't prove that itself. */}
       {isDragging && dragTargetIndex !== null && (
         <div
           className="pointer-events-none absolute right-2 -translate-y-1/2 rounded-full bg-accent px-2 py-1 text-[11px] font-medium tabular-nums text-accent-foreground shadow"
           style={{ top: `${scrollRatio * 100}%` }}
         >
-          {formatTime(lines[dragTargetIndex].timestampMs)}
+          {formatTime(lines[dragTargetIndex]!.timestampMs)}
         </div>
       )}
 
